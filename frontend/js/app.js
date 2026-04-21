@@ -1,3 +1,4 @@
+// ── DATA ──────────────────────────────────────────────────────
 const pageTitles = {
   dashboard: "Dashboard",   clienti:   "Clienti",
   fornitori: "Fornitori",   prodotti:  "Prodotti",
@@ -13,6 +14,8 @@ const renderers = {
 };
 
 let currentPage = "dashboard";
+
+// ── NAVIGAZIONE ───────────────────────────────────────────────
 async function navigateTo(page) {
   currentPage = page;
   document.getElementById("pageTitle").textContent = pageTitles[page];
@@ -30,12 +33,14 @@ async function navigateTo(page) {
   }
 }
 
+// ── DELETE ────────────────────────────────────────────────────
 async function deleteRecord(page, id) {
   if (!confirm("Eliminare questo record?")) return;
   await apiDelete("/" + page + "/" + id);
   navigateTo(currentPage);
 }
 
+// ── EDIT ──────────────────────────────────────────────────────
 const pageToType = {
   clienti:"cliente", fornitori:"fornitore", prodotti:"prodotto",
   ordini:"ordine", dettagli:"dettaglio", magazzino:"giacenza", movimenti:"movimento"
@@ -47,6 +52,7 @@ async function editRecord(page, id) {
   await openModal(pageToType[page], record);
 }
 
+// ── MODAL ─────────────────────────────────────────────────────
 async function openModal(type, existing = null) {
   const modal  = document.getElementById("modal");
   const title  = document.getElementById("modalTitle");
@@ -213,6 +219,7 @@ function closeModal() { document.getElementById("modal").classList.add("hidden")
 document.getElementById("modalClose").onclick = closeModal;
 document.getElementById("modal").onclick = e => { if (e.target.id==="modal") closeModal(); };
 
+// ── HELPERS FORM ──────────────────────────────────────────────
 function today() { return new Date().toISOString().split("T")[0]; }
 function autoNumero() {
   const n = (pageData["ordini"]||[]).length + 1;
@@ -221,6 +228,7 @@ function autoNumero() {
 function v(id) { return document.getElementById(id)?.value?.trim() || null; }
 function vn(id) { return document.getElementById(id)?.value || null; }
 
+// ── SAVE FUNCTIONS ────────────────────────────────────────────
 async function saveCliente(id) {
   if (!v("f_nome")||!v("f_cognome")) return alert("Nome e cognome obbligatori.");
   const data = { nome:v("f_nome"), cognome:v("f_cognome"), azienda:v("f_azienda"), email:v("f_email"), telefono:v("f_telefono"), citta:v("f_citta") };
@@ -269,6 +277,7 @@ async function saveMovimento(id) {
   closeModal(); navigateTo("movimenti");
 }
 
+// ── INIT ──────────────────────────────────────────────────────
 document.querySelectorAll(".nav-link").forEach(link =>
   link.addEventListener("click", e => { e.preventDefault(); navigateTo(link.dataset.page); })
 );
@@ -277,3 +286,35 @@ document.getElementById("topbarDate").textContent =
   new Date().toLocaleDateString("it-IT", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
 
 navigateTo("dashboard");
+
+// ── SOCKET.IO — aggiornamenti in tempo reale ──────────────────
+const socket = io();
+
+socket.on("connect", () => {
+  console.log("🔌 Connesso al server in tempo reale");
+});
+
+// Mappa tabella → pagina corrispondente
+const tableToPage = {
+  clienti:       "clienti",
+  fornitori:     "fornitori",
+  prodotti:      "prodotti",
+  ordini:        "ordini",
+  dettagli_ordine: "dettagli",
+  magazzino:     "magazzino",
+  movimenti:     "movimenti"
+};
+
+socket.on("data_changed", ({ table }) => {
+  const page = tableToPage[table];
+  // Ricarica solo se sei sulla pagina interessata o sulla dashboard
+  if (currentPage === page) {
+    navigateTo(currentPage);
+  } else if (currentPage === "dashboard") {
+    navigateTo("dashboard");
+  }
+});
+
+socket.on("disconnect", () => {
+  console.log("❌ Connessione al server persa");
+});
